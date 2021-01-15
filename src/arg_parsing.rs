@@ -12,6 +12,8 @@ pub enum LatencySimType {
 pub struct ProgArgs {
     pub l_buf_size: usize,
     pub lat_type: LatencySimType,
+    pub lat_mean: usize,
+    pub lat_std: usize,
 }
 
 pub fn parse_prog_args() -> ProgArgs {
@@ -52,5 +54,7 @@ pub fn parse_prog_args() -> ProgArgs {
     ProgArgs {
         l_buf_size,
         lat_type,
+        lat_mean: 50,
+        lat_std: 3,
     }
 }
