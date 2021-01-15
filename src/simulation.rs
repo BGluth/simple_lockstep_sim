@@ -1,6 +1,6 @@
 use crate::arg_parsing::ProgArgs;
 
-use log::info;
+use log::{debug, info};
 use std::cmp::Ordering;
 use std::cmp::Reverse;
 use std::collections::binary_heap::BinaryHeap;
@@ -252,10 +252,6 @@ fn handle_update_cycle_event(ss: &mut SimState, client_id: ClientID) {
     let curr_sim_time = ss.ws.ms_elapsed;
 
     let client = &mut ss.clients[client_id];
-    println!(
-        "Update cycle {} just completed for client {}",
-        client.curr_update_cycle, client_id
-    );
 
     if client.curr_update_cycle == client.next_update_cycle_that_we_are_waiting_on {
         // Stall!
@@ -275,6 +271,11 @@ fn handle_update_cycle_event(ss: &mut SimState, client_id: ClientID) {
     client.add_cycle_to_waiting_on(msg_target_cycle, num_clients);
 
     add_event_for_next_update_cycle_start(&mut ss.ws, client_id, curr_sim_time + UPDATE_CYCLE_FREQ);
+
+    println!(
+        "Update cycle {} just completed for client {}",
+        client.curr_update_cycle, client_id
+    );
 }
 
 fn handle_msg_received_event(ss: &mut SimState, msg: Message) {
@@ -310,6 +311,10 @@ fn process_recv_update_cycle_info_for_client(ss: &mut SimState, client_id: Clien
         .update_cycles_waiting_on
         .swap_remove(idx_of_waiting_msg);
 
+    debug!(
+        "Client {} recieved an update from client {} for cycle {}",
+        client_id, msg.sending_client, msg.target_update_cycle
+    );
     while !client.update_cycles_waiting_on.is_empty()
         && client
             .update_cycles_waiting_on
@@ -317,11 +322,12 @@ fn process_recv_update_cycle_info_for_client(ss: &mut SimState, client_id: Clien
             .all(|x| x.update_cycle != client.next_update_cycle_that_we_are_waiting_on)
     {
         println!(
-            "Client {} just received all other pending client info for frame {}.",
+            "Client {} has received all other pending client info for frame {}.",
             client_id, client.next_update_cycle_that_we_are_waiting_on
         );
 
         if client.is_stalled {
+            println!("Client {} has unstalled.", client_id);
             add_event_for_next_update_cycle_start(&mut ss.ws, client_id, curr_sim_time); // Schedule another update cycle event immediately
             client.is_stalled = false;
         }
