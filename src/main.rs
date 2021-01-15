@@ -2,7 +2,7 @@ mod arg_parsing;
 mod simulation;
 
 use crate::arg_parsing::{ProgArgLogLevel, ProgArgs};
-use crate::simulation::UPDATE_CYCLE_FREQ;
+use crate::simulation::{get_ms_as_str, SimTimeType, UPDATE_CYCLE_FREQ};
 use log::info;
 
 fn main() {
@@ -37,13 +37,23 @@ fn setup_env_logger_from_prog_args_log_level(log_level: &ProgArgLogLevel) {
 }
 
 fn print_info_about_prog_args(p_args: &ProgArgs) {
-    let lockstep_buffer_ms = p_args.l_buf_size * UPDATE_CYCLE_FREQ;
+    let lockstep_buffer_ms = p_args.l_buf_size as SimTimeType * UPDATE_CYCLE_FREQ;
 
     info!(
-        "Lockstep buffer size: {} frames ({}ms)",
-        p_args.l_buf_size, lockstep_buffer_ms
+        "Lockstep buffer size: {} frames ({})",
+        p_args.l_buf_size,
+        get_ms_as_str(lockstep_buffer_ms)
     );
-    info!("Latency mean: {}ms", p_args.lat_mean);
-    info!("Latency std: {}ms", p_args.lat_std);
-    info!("Simulation length: {} events", p_args.num_events_to_proc);
+    info!(
+        "Latency mean: {}",
+        get_ms_as_str(p_args.lat_mean as SimTimeType)
+    );
+    info!(
+        "Latency std: {}",
+        get_ms_as_str(p_args.lat_std as SimTimeType)
+    );
+    info!(
+        "Simulation length: {} events",
+        p_args.num_events_to_proc as SimTimeType
+    );
 }

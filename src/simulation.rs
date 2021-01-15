@@ -6,12 +6,14 @@ use std::cmp::Reverse;
 use std::collections::binary_heap::BinaryHeap;
 use std::fmt;
 
+use ordered_float::OrderedFloat;
 use rand_distr::{Distribution, Normal};
 
 type ClientID = usize;
+pub type SimTimeType = f64;
 
-const FPS: usize = 60;
-pub const UPDATE_CYCLE_FREQ: usize = 1000 / FPS;
+const FPS: SimTimeType = 60.0;
+pub const UPDATE_CYCLE_FREQ: SimTimeType = 1000.0 / FPS;
 
 pub struct SimState {
     ws: WorldState,
@@ -19,7 +21,7 @@ pub struct SimState {
 }
 
 struct WorldState {
-    ms_elapsed: usize,
+    ms_elapsed: SimTimeType,
     upcoming_events: BinaryHeap<Reverse<UpcomingEvent>>,
     ls: LatencyState,
 }
@@ -36,29 +38,31 @@ impl WorldState {
 }
 
 struct LatencyState {
-    lat_dist: Normal<f32>,
+    lat_dist: Normal<SimTimeType>,
 }
 
 impl LatencyState {
     fn new(mean_lat: usize, std_lat: usize) -> LatencyState {
         LatencyState {
-            lat_dist: Normal::new(mean_lat as f32, std_lat as f32).unwrap(),
+            lat_dist: Normal::new(mean_lat as SimTimeType, std_lat as SimTimeType).unwrap(),
         }
     }
 
-    fn gen_delay_of_msg(&mut self) -> usize {
-        self.lat_dist.sample(&mut rand::thread_rng()) as usize
+    fn gen_delay_of_msg(&mut self) -> SimTimeType {
+        self.lat_dist.sample(&mut rand::thread_rng())
     }
 }
 
 struct UpcomingEvent {
-    event_trigger_time: usize,
+    event_trigger_time: SimTimeType,
     e_type: EventType,
 }
 
 impl Ord for UpcomingEvent {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.event_trigger_time.cmp(&other.event_trigger_time)
+        let ordered_self = OrderedFloat(self.event_trigger_time);
+        let ordered_other = OrderedFloat(other.event_trigger_time);
+        ordered_self.cmp(&ordered_other)
     }
 }
 
@@ -155,7 +159,7 @@ impl Message {
 
 pub fn init_state(p_args: &ProgArgs) -> SimState {
     let ws = WorldState {
-        ms_elapsed: 0,
+        ms_elapsed: 0.0,
         upcoming_events: BinaryHeap::new(),
         ls: LatencyState::new(p_args.lat_mean, p_args.lat_std),
     };
@@ -177,8 +181,9 @@ pub fn run_sim_until_next_event(ss: &mut SimState) {
     ss.ws.ms_elapsed = next_event.event_trigger_time;
 
     println!(
-        "Event: {} (sim time: {}ms)",
-        next_event.e_type, ss.ws.ms_elapsed
+        "Event: {} (sim time: {})",
+        next_event.e_type,
+        get_ms_as_str(ss.ws.ms_elapsed)
     );
 
     match next_event.e_type {
@@ -210,7 +215,7 @@ fn create_initial_client_input_frames(ss: &mut SimState, l_buf_size: usize) {
 
 fn create_initial_client_update_cycle_events(ss: &mut SimState) {
     for client_id in 0..ss.clients.len() {
-        add_event_for_next_update_cycle_start(&mut ss.ws, client_id, 0);
+        add_event_for_next_update_cycle_start(&mut ss.ws, client_id, 0.0);
     }
 }
 
@@ -218,8 +223,11 @@ fn send_msg(msg: Message, ws: &mut WorldState) {
     let delay_of_msg = ws.ls.gen_delay_of_msg();
 
     info!(
-        "Sending update to client {} from client {} for cycle {} with a delay of {}ms...",
-        msg.dest_client, msg.sending_client, msg.target_update_cycle, delay_of_msg
+        "Sending update to client {} from client {} for cycle {} with a delay of {}...",
+        msg.dest_client,
+        msg.sending_client,
+        msg.target_update_cycle,
+        get_ms_as_str(delay_of_msg)
     );
 
     let upcoming_event = UpcomingEvent {
@@ -233,11 +241,12 @@ fn send_msg(msg: Message, ws: &mut WorldState) {
 fn add_event_for_next_update_cycle_start(
     ws: &mut WorldState,
     client_id: ClientID,
-    time_of_next_update_cycle: usize,
+    time_of_next_update_cycle: SimTimeType,
 ) {
     info!(
-        "Scheduling next update cycle for client {} at {}ms...",
-        client_id, time_of_next_update_cycle
+        "Scheduling next update cycle for client {} at {}...",
+        client_id,
+        get_ms_as_str(time_of_next_update_cycle)
     );
 
     let update_event = UpcomingEvent {
@@ -355,4 +364,8 @@ fn get_client_ids_that_are_not_ours(
     our_client_id: ClientID,
 ) -> impl Iterator<Item = usize> {
     (0..num_clients).filter(move |id| *id != our_client_id)
+}
+
+pub fn get_ms_as_str(ms: SimTimeType) -> String {
+    format!("{:.2}ms", ms)
 }
